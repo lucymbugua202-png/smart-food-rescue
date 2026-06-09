@@ -1,0 +1,168 @@
+﻿// Add this method to the _DonorDashboardState class in donor_dashboard.dart
+// Replace the existing _showAddDonationDialog method with this one
+
+  void _showAddDonationDialog() {
+    final titleController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final quantityController = TextEditingController();
+    final pickupLocationController = TextEditingController();
+    String selectedCategory = 'Vegetables';
+    String selectedUnit = 'kg';
+    DateTime selectedDate = DateTime.now().add(const Duration(days: 2));
+    String? _selectedImageUrl;
+    bool _isUploading = false;
+    final ImageUploadService _imageService = ImageUploadService();
+
+    final categories = ['Vegetables', 'Fruits', 'Bakery', 'Dairy', 'Non-perishable', 'Other'];
+    final units = ['kg', 'pcs', 'liters', 'cans', 'boxes'];
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Add Donation', style: TextStyle(fontSize: 18)),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Image Upload Section
+                  GestureDetector(
+                    onTap: () async {
+                      setState(() => _isUploading = true);
+                      final imageUrl = await _imageService.pickAndUploadImage();
+                      if (imageUrl != null) {
+                        setState(() => _selectedImageUrl = imageUrl);
+                      }
+                      setState(() => _isUploading = false);
+                    },
+                    child: Container(
+                      height: 120,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey[300]!),
+                      ),
+                      child: _isUploading
+                          ? const Center(child: CircularProgressIndicator())
+                          : _selectedImageUrl != null
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.network(_selectedImageUrl!, fit: BoxFit.cover, width: double.infinity),
+                                )
+                              : Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.add_photo_alternate, size: 40, color: Colors.grey[400]),
+                                    const SizedBox(height: 8),
+                                    Text('Tap to add image', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                                  ],
+                                ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: titleController,
+                    decoration: const InputDecoration(labelText: 'Food Title', border: OutlineInputBorder()),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: descriptionController,
+                    decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
+                    maxLines: 2,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: quantityController,
+                          decoration: const InputDecoration(labelText: 'Quantity', border: OutlineInputBorder()),
+                          keyboardType: TextInputType.number,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: selectedUnit,
+                          decoration: const InputDecoration(labelText: 'Unit', border: OutlineInputBorder()),
+                          items: units.map((unit) => DropdownMenuItem(value: unit, child: Text(unit, style: const TextStyle(fontSize: 13)))),
+                          onChanged: (value) => setState(() => selectedUnit = value!),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: selectedCategory,
+                    decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
+                    items: categories.map((category) => DropdownMenuItem(value: category, child: Text(category, style: const TextStyle(fontSize: 13)))),
+                    onChanged: (value) => setState(() => selectedCategory = value!),
+                  ),
+                  const SizedBox(height: 8),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Expiry Date', style: TextStyle(fontSize: 13)),
+                    subtitle: Text(DateFormat('MMM dd, yyyy').format(selectedDate), style: const TextStyle(fontSize: 12)),
+                    trailing: const Icon(Icons.calendar_today, size: 18),
+                    onTap: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 30)),
+                      );
+                      if (date != null) setState(() => selectedDate = date);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: pickupLocationController,
+                    decoration: const InputDecoration(labelText: 'Pickup Location', border: OutlineInputBorder()),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(fontSize: 13))),
+              ElevatedButton(
+                onPressed: () async {
+                  final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
+                  final donorId = authProvider.currentUser?.id;
+                  
+                  if (donorId != null && titleController.text.isNotEmpty) {
+                    final donation = {
+                      'donationId': _firestore.collection('donations').doc().id,
+                      'donorId': donorId,
+                      'title': titleController.text,
+                      'description': descriptionController.text,
+                      'quantity': int.tryParse(quantityController.text) ?? 0,
+                      'unit': selectedUnit,
+                      'category': selectedCategory,
+                      'imageUrl': _selectedImageUrl,
+                      'expiryDate': Timestamp.fromDate(selectedDate),
+                      'pickupLocation': pickupLocationController.text,
+                      'status': 'pending',
+                      'createdAt': FieldValue.serverTimestamp(),
+                    };
+                    
+                    await _firestore.collection('donations').add(donation);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Donation added!'), duration: Duration(seconds: 2)));
+                    Navigator.pop(context);
+                    _loadStats();
+                  }
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
+                child: const Text('Add Donation', style: TextStyle(fontSize: 13)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }

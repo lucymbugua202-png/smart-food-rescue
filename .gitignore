@@ -1,0 +1,27 @@
+﻿# Flutter/Dart
+.dart_tool/
+.packages
+pubspec.lock
+build/
+
+# Android
+android/.gradle/
+android/local.properties
+
+# iOS
+ios/.symlinks/
+ios/Pods/
+
+# VS Code
+.vscode/
+
+# Firebase
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Generated files
+*.iml
+*.lock
